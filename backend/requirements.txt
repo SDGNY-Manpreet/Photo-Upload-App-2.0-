@@ -1,0 +1,20 @@
+# Required for Azure SQL on Windows/Linux
+pyodbc==5.2.0
+
+# Microsoft Authentication Library (SharePoint Graph API)
+msal==1.24.0
+
+# HTTP client (Procore API + SharePoint Graph API)
+requests>=2.32.3
+urllib3>=1.26.0
+
+# Image processing
+Pillow>=10.4.0
+
+# FastAPI + ASGI server
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# Settings from .env
+pydantic-settings>=2.0.0
