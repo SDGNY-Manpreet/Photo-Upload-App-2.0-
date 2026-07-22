@@ -3,76 +3,39 @@ import sys
 import json
 import pyodbc
 import requests
-import toml
 
 DEFAULT_SHOP_URL = "project-signs.myshopify.com"
 DEFAULT_CLIENT_ID = "71aa8bca5f1c95800cad5c764cf4847f"
 
 def get_shopify_credentials():
-    """Retrieve Shopify credentials from Environment Variables, Streamlit Secrets, or secrets.toml."""
-    creds = {
-        'shop_url': DEFAULT_SHOP_URL,
-        'client_id': DEFAULT_CLIENT_ID,
-        'client_secret': ''
+    """Retrieve Shopify credentials from Environment Variables."""
+    return {
+        'shop_url': os.getenv('SHOP_URL', DEFAULT_SHOP_URL),
+        'client_id': os.getenv('CLIENT_ID', DEFAULT_CLIENT_ID),
+        'client_secret': os.getenv('SHOPIFY_CLIENT_SECRET', '')
     }
-    
-    creds['shop_url'] = os.getenv('SHOP_URL', creds['shop_url'])
-    creds['client_id'] = os.getenv('CLIENT_ID', creds['client_id'])
-    creds['client_secret'] = os.getenv('SHOPIFY_CLIENT_SECRET', '')
-
-    if not creds['client_secret']:
-        secrets_path = os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
-        if os.path.exists(secrets_path):
-            try:
-                with open(secrets_path, "r") as f:
-                    secrets_data = toml.load(f)
-                    shop_sec = secrets_data.get("shopify", secrets_data)
-                    creds['shop_url'] = shop_sec.get("SHOP_URL", creds['shop_url'])
-                    creds['client_id'] = shop_sec.get("CLIENT_ID", creds['client_id'])
-                    creds['client_secret'] = shop_sec.get("SHOPIFY_CLIENT_SECRET", creds['client_secret'])
-            except Exception:
-                pass
-
-    return creds
 
 def get_db_credentials():
-    """Retrieve DB credentials from Environment Variables, Streamlit Secrets, or secrets.toml."""
-    creds = {
-        'server': '',
-        'database': '',
-        'username': '',
-        'password': '',
-        'driver': '{ODBC Driver 17 for SQL Server}'
+    """Retrieve DB credentials from Environment Variables."""
+    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', ''))
+    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', ''))
+    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', ''))
+    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}'))
+
+    if server and '.' not in server:
+        server = f"{server}.database.windows.net"
+
+    if driver and not driver.startswith('{'):
+        driver = f"{{{driver}}}"
+
+    return {
+        'server': server,
+        'database': database,
+        'username': username,
+        'password': password,
+        'driver': driver
     }
-    
-    creds['server'] = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', ''))
-    creds['database'] = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', ''))
-    creds['username'] = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', ''))
-    creds['password'] = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
-    creds['driver'] = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', creds['driver']))
-
-    if not creds['server'] or not creds['password']:
-        secrets_path = os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
-        if os.path.exists(secrets_path):
-            try:
-                with open(secrets_path, "r") as f:
-                    secrets_data = toml.load(f)
-                    az_sec = secrets_data.get("azure_sql", secrets_data)
-                    creds['server'] = az_sec.get("AZURE_DB_SERVER", az_sec.get("DB_SERVER", creds['server']))
-                    creds['database'] = az_sec.get("AZURE_DB_NAME", az_sec.get("DB_NAME", creds['database']))
-                    creds['username'] = az_sec.get("AZURE_DB_USERNAME", az_sec.get("DB_USERNAME", creds['username']))
-                    creds['password'] = az_sec.get("AZURE_DB_PASSWORD", az_sec.get("DB_PASSWORD", creds['password']))
-                    creds['driver'] = az_sec.get("AZURE_DB_DRIVER", az_sec.get("DB_DRIVER", creds['driver']))
-            except Exception as e:
-                print(f"⚠️ Could not load secrets.toml: {e}")
-
-    if creds['server'] and '.' not in creds['server']:
-        creds['server'] = f"{creds['server']}.database.windows.net"
-
-    if creds['driver'] and not creds['driver'].startswith('{'):
-        creds['driver'] = f"{{{creds['driver']}}}"
-
-    return creds
 
 def connect_to_db():
     creds = get_db_credentials()

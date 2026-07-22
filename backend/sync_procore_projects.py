@@ -2,51 +2,29 @@ import os
 import sys
 import json
 import pyodbc
-import toml
 from procore_api import ProcoreAPI
 
 def get_db_credentials():
-    """Retrieve DB credentials from Environment Variables, Streamlit Secrets, or .streamlit/secrets.toml."""
-    creds = {
-        'server': '',
-        'database': '',
-        'username': '',
-        'password': '',
-        'driver': '{ODBC Driver 17 for SQL Server}'
+    """Retrieve DB credentials from Environment Variables."""
+    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', ''))
+    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', ''))
+    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', ''))
+    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
+    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}'))
+
+    if server and '.' not in server:
+        server = f"{server}.database.windows.net"
+
+    if driver and not driver.startswith('{'):
+        driver = f"{{{driver}}}"
+
+    return {
+        'server': server,
+        'database': database,
+        'username': username,
+        'password': password,
+        'driver': driver
     }
-    
-    # 1. Try environment variables first
-    creds['server'] = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', ''))
-    creds['database'] = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', ''))
-    creds['username'] = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', ''))
-    creds['password'] = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
-    creds['driver'] = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', creds['driver']))
-
-    # 2. Try .streamlit/secrets.toml as fallback if env vars missing
-    if not creds['server'] or not creds['password']:
-        secrets_path = os.path.join(os.getcwd(), ".streamlit", "secrets.toml")
-        if os.path.exists(secrets_path):
-            try:
-                with open(secrets_path, "r") as f:
-                    secrets_data = toml.load(f)
-                    az_sec = secrets_data.get("azure_sql", secrets_data)
-                    creds['server'] = az_sec.get("AZURE_DB_SERVER", az_sec.get("DB_SERVER", creds['server']))
-                    creds['database'] = az_sec.get("AZURE_DB_NAME", az_sec.get("DB_NAME", creds['database']))
-                    creds['username'] = az_sec.get("AZURE_DB_USERNAME", az_sec.get("DB_USERNAME", creds['username']))
-                    creds['password'] = az_sec.get("AZURE_DB_PASSWORD", az_sec.get("DB_PASSWORD", creds['password']))
-                    creds['driver'] = az_sec.get("AZURE_DB_DRIVER", az_sec.get("DB_DRIVER", creds['driver']))
-            except Exception as e:
-                print(f"⚠️ Could not load secrets.toml: {e}")
-
-    # Ensure server has full domain name if only hostname provided
-    if creds['server'] and '.' not in creds['server']:
-        creds['server'] = f"{creds['server']}.database.windows.net"
-
-    # Ensure driver is wrapped in curly braces if not present
-    if creds['driver'] and not creds['driver'].startswith('{'):
-        creds['driver'] = f"{{{creds['driver']}}}"
-
-    return creds
 
 def connect_to_db():
     creds = get_db_credentials()
