@@ -6,12 +6,14 @@ from procore_api import ProcoreAPI
 
 def get_db_credentials():
     """Retrieve DB credentials from Environment Variables."""
-    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', ''))
-    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', ''))
-    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', ''))
-    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', ''))
-    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}'))
+    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', '')).strip()
+    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', '')).strip()
+    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', '')).strip()
+    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', '')).strip()
+    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')).strip()
 
+    # Clean server string
+    server = server.replace('tcp:', '').split(',')[0].strip()
     if server and '.' not in server:
         server = f"{server}.database.windows.net"
 
@@ -33,15 +35,45 @@ def connect_to_db():
         print(f"   Server: '{creds['server']}', Database: '{creds['database']}', User: '{creds['username']}'")
         return None
         
-    print(f"🔌 Connecting to Azure SQL Server: {creds['server']} | DB: {creds['database']} | User: {creds['username']}...")
+    full_server = f"tcp:{creds['server']},1433"
+    print(f"🔌 Connecting to Azure SQL Server: {full_server} | DB: {creds['database']} | User: {creds['username']}...")
+    
+    # Try with Encrypt=yes and TrustServerCertificate=no (Standard Azure SQL)
+    conn_str = (
+        f"DRIVER={creds['driver']};"
+        f"SERVER={full_server};"
+        f"DATABASE={creds['database']};"
+        f"UID={creds['username']};"
+        f"PWD={creds['password']};"
+        f"Encrypt=yes;"
+        f"TrustServerCertificate=no;"
+        f"Connection Timeout=30;"
+    )
+    
     try:
-        conn_str = f"DRIVER={creds['driver']};SERVER={creds['server']};DATABASE={creds['database']};UID={creds['username']};PWD={creds['password']};Connection Timeout=30;"
         conn = pyodbc.connect(conn_str)
         print("✅ Connected to Azure SQL successfully!")
         return conn
-    except Exception as e:
-        print(f"❌ Database connection failed: {e}")
-        return None
+    except Exception as e1:
+        print(f"⚠️ Initial Azure SQL connection attempt failed: {e1}")
+        print("🔄 Retrying with TrustServerCertificate=yes...")
+        try:
+            conn_str_fallback = (
+                f"DRIVER={creds['driver']};"
+                f"SERVER={full_server};"
+                f"DATABASE={creds['database']};"
+                f"UID={creds['username']};"
+                f"PWD={creds['password']};"
+                f"Encrypt=yes;"
+                f"TrustServerCertificate=yes;"
+                f"Connection Timeout=30;"
+            )
+            conn = pyodbc.connect(conn_str_fallback)
+            print("✅ Connected to Azure SQL successfully (fallback certificate mode)!")
+            return conn
+        except Exception as e2:
+            print(f"❌ Database connection failed: {e2}")
+            return None
 
 def get_existing_project_numbers(conn):
     """Fetch existing ProjectNumbers to skip them."""
