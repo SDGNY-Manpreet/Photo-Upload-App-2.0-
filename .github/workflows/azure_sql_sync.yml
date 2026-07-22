@@ -29,17 +29,26 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; else pip install requests pyodbc pandas; fi
+          pip install requests toml pyodbc pandas streamlit
+
+      - name: Create Secrets File
+        run: |
+          mkdir -p .streamlit
+          cat << 'EOF' > .streamlit/secrets.toml
+          [procore]
+          client_id = "${{ secrets.PROCORE_CLIENT_ID }}"
+          client_secret = "${{ secrets.PROCORE_CLIENT_SECRET }}"
+          base_url = "https://api.procore.com/rest/v1.0/"
+          token_url = "https://login.procore.com/oauth/token"
+          
+          [azure_sql]
+          AZURE_DB_SERVER = "${{ secrets.AZURE_DB_SERVER }}"
+          AZURE_DB_NAME = "${{ secrets.AZURE_DB_NAME }}"
+          AZURE_DB_USERNAME = "${{ secrets.AZURE_DB_USERNAME }}"
+          AZURE_DB_PASSWORD = "${{ secrets.AZURE_DB_PASSWORD }}"
+          AZURE_DB_DRIVER = "ODBC Driver 17 for SQL Server"
+          EOF
 
       - name: Run Synchronization Script
-        env:
-          AZURE_DB_SERVER: ${{ secrets.AZURE_DB_SERVER }}
-          AZURE_DB_NAME: ${{ secrets.AZURE_DB_NAME }}
-          AZURE_DB_USERNAME: ${{ secrets.AZURE_DB_USERNAME }}
-          AZURE_DB_PASSWORD: ${{ secrets.AZURE_DB_PASSWORD }}
-          PROCORE_CLIENT_ID: ${{ secrets.PROCORE_CLIENT_ID }}
-          PROCORE_CLIENT_SECRET: ${{ secrets.PROCORE_CLIENT_SECRET }}
-          PROCORE_BASE_URL: "https://api.procore.com/rest/v1.0/"
-          PROCORE_TOKEN_URL: "https://login.procore.com/oauth/token"
         run: |
           PYTHONPATH=backend python backend/sync_procore_projects.py

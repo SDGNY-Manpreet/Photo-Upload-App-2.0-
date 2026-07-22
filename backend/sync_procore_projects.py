@@ -4,76 +4,70 @@ import json
 import pyodbc
 from procore_api import ProcoreAPI
 
+# Attempt to load streamlit secrets if available
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
 def get_db_credentials():
-    """Retrieve DB credentials from Environment Variables."""
-    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', '')).strip()
-    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', '')).strip()
-    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', '')).strip()
-    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', '')).strip()
-    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')).strip()
-
-    # Clean server string
-    server = server.replace('tcp:', '').split(',')[0].strip()
-    if server and '.' not in server:
-        server = f"{server}.database.windows.net"
-
-    if driver and not driver.startswith('{'):
-        driver = f"{{{driver}}}"
-
-    return {
-        'server': server,
-        'database': database,
-        'username': username,
-        'password': password,
-        'driver': driver
+    """Retrieve DB credentials from Streamlit Secrets or Environment Variables."""
+    creds = {
+        'server': '',
+        'database': '',
+        'username': '',
+        'password': '',
+        'driver': '{ODBC Driver 17 for SQL Server}'
     }
+    
+    # Try streamlit secrets first
+    if HAS_STREAMLIT:
+        try:
+            if 'azure_sql' in st.secrets:
+                creds['server'] = st.secrets["azure_sql"].get("AZURE_DB_SERVER", "")
+                creds['database'] = st.secrets["azure_sql"].get("AZURE_DB_NAME", "")
+                creds['username'] = st.secrets["azure_sql"].get("AZURE_DB_USERNAME", "")
+                creds['password'] = st.secrets["azure_sql"].get("AZURE_DB_PASSWORD", "")
+                creds['driver'] = st.secrets["azure_sql"].get("AZURE_DB_DRIVER", creds['driver'])
+                return creds
+            elif 'DB_SERVER' in st.secrets:
+                creds['server'] = st.secrets.get("DB_SERVER", "")
+                creds['database'] = st.secrets.get("DB_NAME", "")
+                creds['username'] = st.secrets.get("DB_USERNAME", "")
+                creds['password'] = st.secrets.get("DB_PASSWORD", "")
+                creds['driver'] = st.secrets.get("DB_DRIVER", creds['driver'])
+                return creds
+        except Exception:
+            pass
+
+    # Fallback to Environment Variables (GitHub Actions / Local Cron)
+    creds['server'] = os.getenv('AZURE_DB_SERVER', creds['server'])
+    creds['database'] = os.getenv('AZURE_DB_NAME', creds['database'])
+    creds['username'] = os.getenv('AZURE_DB_USERNAME', creds['username'])
+    creds['password'] = os.getenv('AZURE_DB_PASSWORD', creds['password'])
+    creds['driver'] = os.getenv('AZURE_DB_DRIVER', creds['driver'])
+    
+    # Adjust driver for Linux/GitHub Actions if needed
+    if os.name != 'nt' and creds['driver'] == '{ODBC Driver 17 for SQL Server}':
+        creds['driver'] = 'ODBC Driver 17 for SQL Server'
+        
+    return creds
 
 def connect_to_db():
     creds = get_db_credentials()
+    print(f"DEBUG: Connecting with Server='{creds['server']}', Database='{creds['database']}', User='{creds['username']}', Driver='{creds['driver']}'")
     if not creds['server'] or not creds['password']:
         print("❌ Missing database credentials.")
-        print(f"   Server: '{creds['server']}', Database: '{creds['database']}', User: '{creds['username']}'")
         return None
         
-    full_server = f"tcp:{creds['server']},1433"
-    print(f"🔌 Connecting to Azure SQL Server: {full_server} | DB: {creds['database']} | User: {creds['username']}...")
-    
-    # Try with Encrypt=yes and TrustServerCertificate=no (Standard Azure SQL)
-    conn_str = (
-        f"DRIVER={creds['driver']};"
-        f"SERVER={full_server};"
-        f"DATABASE={creds['database']};"
-        f"UID={creds['username']};"
-        f"PWD={creds['password']};"
-        f"Encrypt=yes;"
-        f"TrustServerCertificate=no;"
-        f"Connection Timeout=30;"
-    )
-    
     try:
+        conn_str = f"DRIVER={creds['driver']};SERVER={creds['server']};DATABASE={creds['database']};UID={creds['username']};PWD={creds['password']};Connection Timeout=30;"
         conn = pyodbc.connect(conn_str)
-        print("✅ Connected to Azure SQL successfully!")
         return conn
-    except Exception as e1:
-        print(f"⚠️ Initial Azure SQL connection attempt failed: {e1}")
-        print("🔄 Retrying with TrustServerCertificate=yes...")
-        try:
-            conn_str_fallback = (
-                f"DRIVER={creds['driver']};"
-                f"SERVER={full_server};"
-                f"DATABASE={creds['database']};"
-                f"UID={creds['username']};"
-                f"PWD={creds['password']};"
-                f"Encrypt=yes;"
-                f"TrustServerCertificate=yes;"
-                f"Connection Timeout=30;"
-            )
-            conn = pyodbc.connect(conn_str_fallback)
-            print("✅ Connected to Azure SQL successfully (fallback certificate mode)!")
-            return conn
-        except Exception as e2:
-            print(f"❌ Database connection failed: {e2}")
-            return None
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        return None
 
 def get_existing_project_numbers(conn):
     """Fetch existing ProjectNumbers to skip them."""
@@ -91,6 +85,7 @@ def safe_truncate(text, max_length=100):
 def sync_projects():
     print("🚀 Starting Procore Project Data Synchronization...")
     
+    # 1. Connect to Database
     conn = connect_to_db()
     if not conn:
         sys.exit(1)
@@ -98,6 +93,7 @@ def sync_projects():
     existing_numbers = get_existing_project_numbers(conn)
     print(f"✅ Found {len(existing_numbers)} existing projects in database.")
     
+    # 2. Authenticate with Procore
     api = ProcoreAPI()
     if not api.authenticate():
         print("❌ Failed to authenticate with Procore API.")
@@ -106,6 +102,7 @@ def sync_projects():
     
     headers = api.get_headers()
     
+    # 3. Fetch Projects
     print("📥 Fetching projects from Procore...")
     procore_projects = api.list_projects()
     print(f"✅ Fetched {len(procore_projects)} projects from Procore.")
@@ -117,10 +114,12 @@ def sync_projects():
     for p in procore_projects:
         p_num = str(p.get('number', '')).strip()
         
+        # Skip invalid or empty project numbers
         if not p_num or p_num == "No #" or p_num == "None":
             continue
             
         p_num_lower = p_num.lower()
+        # Add-Only Logic: Skip if already exists
         if p_num_lower in existing_numbers:
             skipped_count += 1
             continue
@@ -129,10 +128,12 @@ def sync_projects():
         p_name = p.get('name')
         print(f"🆕 Found new project: {p_name} ({p_num}). Fetching details...")
         
+        # Get Extended Details
         url_ext = f"{api.base_url}projects/{p_id}?company_id={api.company_id}&serializer_view=extended"
         res_ext = api.session.get(url_ext, headers=headers)
         p_ext = res_ext.json() if res_ext.status_code == 200 else {}
         
+        # Get Roles
         url_roles = f"{api.base_url}project_roles?project_id={p_id}&company_id={api.company_id}"
         res_roles = api.session.get(url_roles, headers=headers)
         roles_data = res_roles.json() if res_roles.status_code == 200 else []
@@ -142,14 +143,19 @@ def sync_projects():
         for r in roles_data:
             role_name = str(r.get('role', '')).lower()
             name = r.get('name', '')
+            
+            # Clean up names like "John Doe (Company Name)" -> "John Doe"
             clean_name = name.split("(")[0].strip() if name else ""
+            
             if not clean_name:
                 continue
+                
             if 'executive' in role_name or 'director' in role_name:
                 executives.append(clean_name)
             elif 'manager' in role_name or 'pm' in role_name:
                 managers.append(clean_name)
                 
+        # Get Customer from Prime Contracts
         url_contracts = f"{api.base_url}prime_contracts?project_id={p_id}"
         res_contracts = api.session.get(url_contracts, headers=headers)
         contracts_data = res_contracts.json() if res_contracts.status_code == 200 else []
@@ -162,7 +168,9 @@ def sync_projects():
                 customer = v_name
                 break
                 
+        # Prepare mapped data
         ptype_obj = p_ext.get('project_type')
+        
         street_address = p.get('address') or p_ext.get('address')
         city = p.get('city') or p_ext.get('city')
         state = p.get('state_code') or p_ext.get('state_code')
@@ -172,6 +180,7 @@ def sync_projects():
         project_exec = ", ".join(set(executives)) if executives else None
         project_mgr = ", ".join(set(managers)) if managers else None
         
+        # Insert into Database
         insert_query = """
             INSERT INTO ProcoreProjectData 
             (ProjectNumber, ProjectName, ProjectType, ProjectExecutive, ProjectManager, 
@@ -197,6 +206,7 @@ def sync_projects():
             conn.commit()
             added_count += 1
             print(f"   ✅ Added to database successfully.")
+            # Update our cache so we don't try to add it again if the loop duplicates
             existing_numbers.add(p_num_lower)
         except Exception as e:
             print(f"   ❌ Error inserting project {p_num}: {e}")

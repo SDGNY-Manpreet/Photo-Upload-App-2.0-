@@ -7,83 +7,91 @@ import requests
 DEFAULT_SHOP_URL = "project-signs.myshopify.com"
 DEFAULT_CLIENT_ID = "71aa8bca5f1c95800cad5c764cf4847f"
 
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
+
 def get_shopify_credentials():
-    """Retrieve Shopify credentials from Environment Variables."""
-    return {
-        'shop_url': os.getenv('SHOP_URL', DEFAULT_SHOP_URL),
-        'client_id': os.getenv('CLIENT_ID', DEFAULT_CLIENT_ID),
-        'client_secret': os.getenv('SHOPIFY_CLIENT_SECRET', '')
+    """Retrieve Shopify credentials from Streamlit Secrets or Environment Variables."""
+    creds = {
+        'shop_url': DEFAULT_SHOP_URL,
+        'client_id': DEFAULT_CLIENT_ID,
+        'client_secret': ''
     }
+    
+    if HAS_STREAMLIT:
+        try:
+            if 'shopify' in st.secrets:
+                creds['shop_url'] = st.secrets["shopify"].get("SHOP_URL", creds['shop_url'])
+                creds['client_id'] = st.secrets["shopify"].get("CLIENT_ID", creds['client_id'])
+                creds['client_secret'] = st.secrets["shopify"].get("SHOPIFY_CLIENT_SECRET", "")
+            if not creds['client_secret'] and 'SHOPIFY_CLIENT_SECRET' in st.secrets:
+                creds['client_secret'] = st.secrets.get("SHOPIFY_CLIENT_SECRET", "")
+        except Exception:
+            pass
+
+    creds['shop_url'] = os.getenv('SHOP_URL', creds['shop_url'])
+    creds['client_id'] = os.getenv('CLIENT_ID', creds['client_id'])
+    creds['client_secret'] = os.getenv('SHOPIFY_CLIENT_SECRET', creds['client_secret'])
+    
+    return creds
 
 def get_db_credentials():
-    """Retrieve DB credentials from Environment Variables."""
-    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', '')).strip()
-    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', '')).strip()
-    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', '')).strip()
-    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', '')).strip()
-    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')).strip()
-
-    # Clean server string
-    server = server.replace('tcp:', '').split(',')[0].strip()
-    if server and '.' not in server:
-        server = f"{server}.database.windows.net"
-
-    if driver and not driver.startswith('{'):
-        driver = f"{{{driver}}}"
-
-    return {
-        'server': server,
-        'database': database,
-        'username': username,
-        'password': password,
-        'driver': driver
+    """Retrieve DB credentials from Streamlit Secrets or Environment Variables."""
+    creds = {
+        'server': '',
+        'database': '',
+        'username': '',
+        'password': '',
+        'driver': '{ODBC Driver 17 for SQL Server}'
     }
+    
+    if HAS_STREAMLIT:
+        try:
+            if 'azure_sql' in st.secrets:
+                creds['server'] = st.secrets["azure_sql"].get("AZURE_DB_SERVER", "")
+                creds['database'] = st.secrets["azure_sql"].get("AZURE_DB_NAME", "")
+                creds['username'] = st.secrets["azure_sql"].get("AZURE_DB_USERNAME", "")
+                creds['password'] = st.secrets["azure_sql"].get("AZURE_DB_PASSWORD", "")
+                creds['driver'] = st.secrets["azure_sql"].get("AZURE_DB_DRIVER", creds['driver'])
+                return creds
+            elif 'DB_SERVER' in st.secrets:
+                creds['server'] = st.secrets.get("DB_SERVER", "")
+                creds['database'] = st.secrets.get("DB_NAME", "")
+                creds['username'] = st.secrets.get("DB_USERNAME", "")
+                creds['password'] = st.secrets.get("DB_PASSWORD", "")
+                creds['driver'] = st.secrets.get("DB_DRIVER", creds['driver'])
+                return creds
+        except Exception:
+            pass
+
+    creds['server'] = os.getenv('AZURE_DB_SERVER', creds['server'])
+    creds['database'] = os.getenv('AZURE_DB_NAME', creds['database'])
+    creds['username'] = os.getenv('AZURE_DB_USERNAME', creds['username'])
+    creds['password'] = os.getenv('AZURE_DB_PASSWORD', creds['password'])
+    creds['driver'] = os.getenv('AZURE_DB_DRIVER', creds['driver'])
+    
+    if os.name != 'nt' and creds['driver'] == '{ODBC Driver 17 for SQL Server}':
+        creds['driver'] = 'ODBC Driver 17 for SQL Server'
+        
+    return creds
 
 def connect_to_db():
     creds = get_db_credentials()
+    print(f"DEBUG: Connecting with Server='{creds['server']}', Database='{creds['database']}', User='{creds['username']}', Driver='{creds['driver']}'")
     if not creds['server'] or not creds['password']:
-        print("❌ Missing database credentials.")
-        print(f"   Server: '{creds['server']}', Database: '{creds['database']}', User: '{creds['username']}'")
+        print("[!] Missing database credentials.")
         return None
         
-    full_server = f"tcp:{creds['server']},1433"
-    print(f"🔌 Connecting to Azure SQL Server: {full_server} | DB: {creds['database']} | User: {creds['username']}...")
-    
-    conn_str = (
-        f"DRIVER={creds['driver']};"
-        f"SERVER={full_server};"
-        f"DATABASE={creds['database']};"
-        f"UID={creds['username']};"
-        f"PWD={creds['password']};"
-        f"Encrypt=yes;"
-        f"TrustServerCertificate=no;"
-        f"Connection Timeout=30;"
-    )
-    
     try:
+        conn_str = f"DRIVER={creds['driver']};SERVER={creds['server']};DATABASE={creds['database']};UID={creds['username']};PWD={creds['password']};Connection Timeout=30;"
         conn = pyodbc.connect(conn_str)
-        print("✅ Connected to Azure SQL successfully!")
         return conn
-    except Exception as e1:
-        print(f"⚠️ Initial Azure SQL connection attempt failed: {e1}")
-        print("🔄 Retrying with TrustServerCertificate=yes...")
-        try:
-            conn_str_fallback = (
-                f"DRIVER={creds['driver']};"
-                f"SERVER={full_server};"
-                f"DATABASE={creds['database']};"
-                f"UID={creds['username']};"
-                f"PWD={creds['password']};"
-                f"Encrypt=yes;"
-                f"TrustServerCertificate=yes;"
-                f"Connection Timeout=30;"
-            )
-            conn = pyodbc.connect(conn_str_fallback)
-            print("✅ Connected to Azure SQL successfully (fallback certificate mode)!")
-            return conn
-        except Exception as e2:
-            print(f"❌ Database connection failed: {e2}")
-            return None
+    except Exception as e:
+        print(f"[!] Database connection failed: {e}")
+        return None
 
 def get_shopify_access_token(creds):
     print(f"[*] Authenticating with Shopify ({creds['shop_url']})...")
