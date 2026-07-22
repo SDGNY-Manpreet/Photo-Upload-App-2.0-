@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { fetchHealth } from "../api/client";
+import { BuildingIcon, ShoppingBagIcon, SparklesIcon } from "./Icons";
 
 const NAV_ITEMS = [
-  { id: "procore", label: "Procore Projects", icon: "📷", short: "Procore" },
-  { id: "shopify", label: "Shopify Orders", icon: "🛍️", short: "Shopify" },
-  { id: "special", label: "Special Projects", icon: "⭐", short: "Special" },
+  { id: "procore", label: "Procore Projects", Icon: BuildingIcon, short: "Procore" },
+  { id: "shopify", label: "Shopify Orders", Icon: ShoppingBagIcon, short: "Shopify" },
+  { id: "special", label: "Special Projects", Icon: SparklesIcon, short: "Special" },
 ];
 
 export default function Sidebar({ activeTab, onChangeTab }) {
@@ -44,19 +45,20 @@ export default function Sidebar({ activeTab, onChangeTab }) {
         
         {NAV_ITEMS.map((item) => {
           const isActive = activeTab === item.id;
+          const IconComponent = item.Icon;
           return (
             <button
               key={item.id}
               onClick={() => onChangeTab(item.id)}
               className={`
-                shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-4 md:px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                shrink-0 md:w-full flex items-center gap-2.5 px-4 md:px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
                 ${isActive 
                   ? 'bg-slate-900 text-white shadow-md shadow-slate-200/50 md:translate-x-1' 
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 bg-white border border-slate-200 md:border-transparent md:bg-transparent'
                 }
               `}
             >
-              <span className="text-lg">{item.icon}</span>
+              <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-brand-400' : 'text-slate-400'}`} />
               <span className="hidden md:inline">{item.label}</span>
               <span className="md:hidden">{item.short}</span>
             </button>

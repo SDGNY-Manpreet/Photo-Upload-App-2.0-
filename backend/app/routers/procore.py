@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,6 +10,11 @@ from app.services.image_utils import strip_exif_and_repack
 from app.services.procore_client import ProcoreClient
 
 router = APIRouter(prefix="/api/procore", tags=["procore"])
+
+# In-memory cache for Procore projects (10 minutes)
+CACHE_TTL_SECONDS = 600
+_procore_projects_cache = None
+_procore_projects_time = 0
 
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "pdf"}
@@ -23,15 +29,26 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 @router.get("/projects")
-def list_projects():
+def list_projects(force_refresh: bool = False):
     """
-    Fetch all active Procore projects.
+    Fetch all active Procore projects (cached 10m).
     Returns: [{"id": 123, "name": "...", "number": "101"}, ...]
     """
+    global _procore_projects_cache, _procore_projects_time
+    now = time.time()
+
+    if not force_refresh and _procore_projects_cache is not None and (now - _procore_projects_time) < CACHE_TTL_SECONDS:
+        return _procore_projects_cache
+
     client = ProcoreClient()
     projects = client.list_projects()
     if not projects:
+        if _procore_projects_cache is not None:
+            return _procore_projects_cache
         raise HTTPException(status_code=502, detail="Could not fetch projects from Procore API")
+
+    _procore_projects_cache = projects
+    _procore_projects_time = now
     return projects
 
 

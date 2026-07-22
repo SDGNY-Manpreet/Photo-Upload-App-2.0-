@@ -1,5 +1,17 @@
 import pyodbc
+import time
 from app.config import settings
+
+# ---------------------------------------------------------------------------
+# In-memory TTL Cache (10-minute expiration for instant responses)
+# ---------------------------------------------------------------------------
+CACHE_TTL_SECONDS = 600  # 10 minutes
+
+_shopify_orders_cache = None
+_shopify_orders_time = 0
+
+_special_projects_cache = None
+_special_projects_time = 0
 
 
 def get_connection():
@@ -37,8 +49,14 @@ def test_connection() -> tuple[bool, str]:
 # Shopify
 # ---------------------------------------------------------------------------
 
-def get_all_shopify_orders() -> list[dict]:
-    """Returns all non-null OrderIDs and their CustomerNames, sorted by OrderID."""
+def get_all_shopify_orders(force_refresh: bool = False) -> list[dict]:
+    """Returns all non-null OrderIDs and their CustomerNames, sorted by OrderID (cached 10m)."""
+    global _shopify_orders_cache, _shopify_orders_time
+    now = time.time()
+
+    if not force_refresh and _shopify_orders_cache is not None and (now - _shopify_orders_time) < CACHE_TTL_SECONDS:
+        return _shopify_orders_cache
+
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -49,8 +67,14 @@ def get_all_shopify_orders() -> list[dict]:
         rows = [{"order_id": str(row[0]), "customer_name": str(row[1]) if row[1] else ""} for row in cursor.fetchall()]
         cursor.close()
         conn.close()
+
+        _shopify_orders_cache = rows
+        _shopify_orders_time = now
         return rows
     except Exception:
+        # Fallback to stale cache if DB query fails during wake-up
+        if _shopify_orders_cache is not None:
+            return _shopify_orders_cache
         return []
 
 
@@ -58,11 +82,17 @@ def get_all_shopify_orders() -> list[dict]:
 # Special Projects (letter-prefix project IDs)
 # ---------------------------------------------------------------------------
 
-def get_all_special_projects() -> list[dict]:
+def get_all_special_projects(force_refresh: bool = False) -> list[dict]:
     """
     Returns all special projects (ProjectNumber starting with a letter)
-    and their ProjectName and Customer, sorted ascending by ProjectNumber.
+    and their ProjectName and Customer, sorted ascending by ProjectNumber (cached 10m).
     """
+    global _special_projects_cache, _special_projects_time
+    now = time.time()
+
+    if not force_refresh and _special_projects_cache is not None and (now - _special_projects_time) < CACHE_TTL_SECONDS:
+        return _special_projects_cache
+
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -74,7 +104,6 @@ def get_all_special_projects() -> list[dict]:
         
         result = []
         for row in rows:
-            # Fallback filter in Python in case LIKE '[A-Za-z]%' returned weird things
             p_num = str(row[0]) if row[0] else ""
             if p_num and p_num.strip() and p_num.strip()[0].isalpha():
                 result.append({
@@ -85,6 +114,12 @@ def get_all_special_projects() -> list[dict]:
         
         cursor.close()
         conn.close()
+
+        _special_projects_cache = result
+        _special_projects_time = now
         return result
     except Exception:
+        if _special_projects_cache is not None:
+            return _special_projects_cache
         return []
+

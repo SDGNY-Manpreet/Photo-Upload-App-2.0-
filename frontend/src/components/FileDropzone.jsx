@@ -1,24 +1,25 @@
 import { useRef, useState, useEffect } from "react";
+import { UploadCloudIcon, TrashIcon, XIcon, FolderIcon } from "./Icons";
 
 const ALLOWED_EXTS = ["png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "pdf"];
-const IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "bmp"]; // Types we can safely URL.createObjectURL preview
+const IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "bmp"];
 
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function FileDropzone({ files, onChange, disabled }) {
+export default function FileDropzone({ files = [], onChange, disabled = false }) {
   const inputRef = useRef();
   const [dragOver, setDragOver] = useState(false);
   const [previews, setPreviews] = useState({});
 
-  // Generate object URLs for image previews
+  // Generate object URLs for image previews and manage memory
   useEffect(() => {
     const newPreviews = { ...previews };
     let changed = false;
 
-    files.forEach(f => {
+    files.forEach((f) => {
       const ext = f.name.split(".").pop().toLowerCase();
       const key = `${f.name}-${f.size}`;
       
@@ -31,11 +32,16 @@ export default function FileDropzone({ files, onChange, disabled }) {
     if (changed) {
       setPreviews(newPreviews);
     }
-
-    // We don't cleanup object URLs here to prevent flickering, 
-    // rely on browser GC on page unload, or clean them up manually if needed.
-    // For a production app with huge files, manual revokeObjectURL is better.
   }, [files]);
+
+  // Clean up Object URLs when files are removed or unmounted
+  useEffect(() => {
+    return () => {
+      Object.values(previews).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
 
   const addFiles = (incoming) => {
     const valid = Array.from(incoming).filter((f) => {
@@ -51,7 +57,6 @@ export default function FileDropzone({ files, onChange, disabled }) {
     const newFiles = [...files];
     const removed = newFiles.splice(idx, 1)[0];
     
-    // Cleanup preview URL to prevent memory leaks
     if (removed) {
       const key = `${removed.name}-${removed.size}`;
       if (previews[key]) {
@@ -63,6 +68,14 @@ export default function FileDropzone({ files, onChange, disabled }) {
     }
     
     onChange(newFiles);
+  };
+
+  const clearAll = () => {
+    Object.values(previews).forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+    setPreviews({});
+    onChange([]);
   };
 
   const totalMB = files.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024);
@@ -81,7 +94,7 @@ export default function FileDropzone({ files, onChange, disabled }) {
           transition-all duration-200 group
           ${dragOver
             ? "border-brand-500 bg-brand-50 shadow-inner"
-            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white"
+            : "border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-white"
           }
           ${disabled ? "opacity-50 cursor-not-allowed" : ""}
         `}
@@ -97,15 +110,13 @@ export default function FileDropzone({ files, onChange, disabled }) {
           className="hidden"
         />
         
-        <div className={`p-3 rounded-full transition-colors ${dragOver ? 'bg-brand-200 text-brand-700' : 'bg-white text-slate-400 group-hover:text-slate-600 shadow-sm border border-slate-100'}`}>
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
+        <div className={`p-3.5 rounded-2xl transition-colors ${dragOver ? 'bg-brand-200 text-brand-700' : 'bg-white text-slate-500 group-hover:text-slate-900 shadow-sm border border-slate-200'}`}>
+          <UploadCloudIcon className="w-7 h-7" />
         </div>
         
         <div className="text-center">
-          <p className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-900 underline underline-offset-2">Click to browse</span> or drag files here
+          <p className="text-sm text-slate-600 font-medium">
+            <span className="font-semibold text-slate-900 underline underline-offset-2">Click to browse</span> or drag photos here
           </p>
           <p className="text-xs text-slate-400 mt-1">
             PNG, JPG, PDF up to 20MB (auto-optimized)
@@ -117,12 +128,25 @@ export default function FileDropzone({ files, onChange, disabled }) {
       {files.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {files.length} file{files.length !== 1 ? "s" : ""} selected
-            </span>
-            <span className="px-2 py-1 text-[10px] font-bold bg-brand-100 border border-brand-200 text-brand-800 rounded-lg">
-              {totalMB.toFixed(1)} MB total
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {files.length} file{files.length !== 1 ? "s" : ""} selected
+              </span>
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-brand-100 border border-brand-200 text-brand-800 rounded-md">
+                {totalMB.toFixed(1)} MB total
+              </span>
+            </div>
+
+            {!disabled && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-slate-400 hover:text-red-600 flex items-center gap-1 font-medium transition-colors"
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+                Clear all
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -140,12 +164,11 @@ export default function FileDropzone({ files, onChange, disabled }) {
                   {/* Remove Button Overlay */}
                   {!disabled && (
                     <button
+                      type="button"
                       onClick={() => remove(i)}
-                      className="absolute top-1.5 right-1.5 z-10 w-6 h-6 bg-white/90 backdrop-blur-sm border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 rounded-full flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute top-2 right-2 z-10 w-6 h-6 bg-white/90 backdrop-blur-sm border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 rounded-full flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-sm"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <XIcon className="w-3.5 h-3.5" />
                     </button>
                   )}
 
@@ -155,23 +178,21 @@ export default function FileDropzone({ files, onChange, disabled }) {
                       <img 
                         src={previewUrl} 
                         alt={f.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="text-slate-300">
-                        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
+                      <div className="text-slate-400">
+                        <FolderIcon className="w-9 h-9" />
                       </div>
                     )}
                   </div>
 
                   {/* Info gradient overlay */}
-                  <div className="absolute inset-x-0 bottom-0 p-2 pt-6 bg-gradient-to-t from-black/60 to-transparent">
-                    <p className="text-[10px] text-white font-medium truncate drop-shadow-md">
+                  <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6 bg-gradient-to-t from-black/70 via-black/30 to-transparent">
+                    <p className="text-[11px] text-white font-medium truncate drop-shadow-sm">
                       {f.name}
                     </p>
-                    <p className="text-[9px] text-white/80 truncate drop-shadow-md">
+                    <p className="text-[9px] text-white/80 truncate font-mono mt-0.5">
                       {formatSize(f.size)}
                     </p>
                   </div>

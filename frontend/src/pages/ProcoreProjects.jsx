@@ -4,6 +4,7 @@ import FileDropzone from "../components/FileDropzone";
 import UploadProgress from "../components/UploadProgress";
 import SearchableSelect from "../components/SearchableSelect";
 import Steps from "../components/Steps";
+import { CheckCircleIcon, UploadCloudIcon } from "../components/Icons";
 
 const STATUS_OPTIONS = ["PRODUCTION", "SHIPPED", "PICKUP", "INSTALLATION", "SITE SURVEY"];
 const PERSON_NAMES = [
@@ -139,11 +140,9 @@ export default function ProcoreProjects() {
               {selectedProject && (() => {
                 const p = projects.find((p) => `${p.number} - ${p.name}` === selectedProject);
                 return p ? (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-brand-800 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
-                    <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Project <strong>#{p.number}</strong> selected (ID: {p.id})
+                  <div className="mt-3 flex items-center gap-2 text-xs text-brand-800 bg-brand-50 border border-brand-200 rounded-xl px-3.5 py-2.5 shadow-sm">
+                    <CheckCircleIcon className="w-4 h-4 text-brand-600 shrink-0" />
+                    <span>Project <strong className="font-bold">#{p.number}</strong> selected (ID: {p.id})</span>
                   </div>
                 ) : null;
               })()}
@@ -211,12 +210,9 @@ export default function ProcoreProjects() {
                   ) : (
                     <>
                       <span className="relative z-10 flex items-center gap-2">
-                        <svg className="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
+                        <UploadCloudIcon className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
                         Upload to Procore & SharePoint
                       </span>
-                      {/* Button hover gradient effect */}
                       <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-900 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </>
                   )}

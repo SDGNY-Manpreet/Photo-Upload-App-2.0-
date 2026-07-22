@@ -1,4 +1,6 @@
-export default function Steps({ currentStep, steps }) {
+import { CheckCircleIcon } from "./Icons";
+
+export default function Steps({ currentStep, steps = [] }) {
   return (
     <div className="flex items-center justify-between w-full relative mb-8">
       {/* Background connecting line */}
@@ -20,7 +22,7 @@ export default function Steps({ currentStep, steps }) {
               `}
             >
               {isCompleted ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               ) : (
@@ -30,7 +32,7 @@ export default function Steps({ currentStep, steps }) {
             <span
               className={`
                 absolute top-10 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-colors
-                ${isActive ? 'text-slate-900' : 'text-slate-400'}
+                ${isActive ? 'text-slate-900 font-bold' : isCompleted ? 'text-slate-700' : 'text-slate-400'}
               `}
             >
               {step}

@@ -4,6 +4,7 @@ import FileDropzone from "../components/FileDropzone";
 import UploadProgress from "../components/UploadProgress";
 import SearchableSelect from "../components/SearchableSelect";
 import Steps from "../components/Steps";
+import { UploadCloudIcon } from "../components/Icons";
 
 const STATUS_OPTIONS = ["PRODUCTION", "SHIPPED", "PICKUP", "INSTALLATION", "SITE SURVEY"];
 const PERSON_NAMES = [
@@ -238,9 +239,7 @@ export default function SpecialProjects() {
                   ) : (
                     <>
                       <span className="relative z-10 flex items-center gap-2">
-                        <svg className="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
+                        <UploadCloudIcon className="w-5 h-5 transition-transform group-hover:-translate-y-0.5" />
                         Upload to SharePoint
                       </span>
                       <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-900 opacity-0 group-hover:opacity-100 transition-opacity" />

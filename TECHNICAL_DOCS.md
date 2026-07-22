@@ -1,30 +1,68 @@
-# Technical Documentation: SDGNY Photo Upload System v2.0
+## 1. Overview & Functional User Data Flow
 
-## 1. Overview & System Architecture
+The **SDGNY Photo Upload System v2.0** provides a 4-step wizard for users to select a destination, fill required metadata, attach photos, and automatically process & route files to the correct cloud destination.
 
-The **SDGNY Photo Upload System v2.0** is an enterprise-grade web application built to streamline photo uploading, image optimization, and cloud storage backup across three main operational workflows:
-1. **Procore Projects** (Synced to Procore API + Backed up to SharePoint)
-2. **Shopify Orders** (Stored in SharePoint under Customer / Order ID / Status)
-3. **Special Projects** (Stored in SharePoint under Project Code / Job Year / Job Number / Status)
+```mermaid
+flowchart TD
+    Start(["User Opens App"]) --> Choice{"Choose Destination"}
 
+    %% Tab 1
+    Choice -- "📷 Procore Projects" --> P1["1. Select Project\n(Job # & Name)"]
+    P1 --> P2["2. Choose Stage Status &\nUploader Name"]
+    P2 --> P3["3. Drag & Drop Photos"]
+    P3 --> P4["4. Automatic Dual Sync"]
+    P4 --> P_Out1[("📷 Procore Album")]
+    P4 --> P_Out2[("📁 SharePoint Backup\nProcore_Projects / Project# / Status")]
+
+    %% Tab 2
+    Choice -- "🛍️ Shopify Orders" --> S1["1. Select Order ID\n(Auto-populates Customer)"]
+    S1 --> S2["2. Choose Stage Status &\nUploader Name"]
+    S2 --> S3["3. Drag & Drop Photos"]
+    S3 --> S4["4. Auto Image Compression"]
+    S4 --> S_Out[("📁 SharePoint\nShopify_orders_photos / Customer / Order / Status")]
+
+    %% Tab 3
+    Choice -- "⭐ Special Projects" --> X1["1. Select Project Code &\nType Job Number (e.g. 25-1234)"]
+    X1 --> X2["2. Choose Stage Status &\nUploader Name"]
+    X2 --> X3["3. Drag & Drop Photos"]
+    X3 --> X4["4. Auto Job Year Parsing"]
+    X4 --> X_Out[("📁 SharePoint\nSpecial_Projects / Code / Year Projects / Job / Status")]
 ```
-                       ┌─────────────────────────────────────────┐
-                       │          React + Vite Frontend          │
-                       │     (Tailwind CSS, Inter Font, SVGs)    │
-                       └────────────────────┬────────────────────┘
-                                            │ HTTP / REST API (Axios)
-                                            ▼
-                       ┌─────────────────────────────────────────┐
-                       │          FastAPI Backend (Py3.12)       │
-                       │    (TTL Cache, Parallel Uploader)       │
-                       └───────────┬────────┬─────────┬──────────┘
-                                   │        │         │
-            ┌──────────────────────┘        │         └──────────────────────┐
-            ▼                               ▼                                ▼
-  ┌───────────────────┐           ┌───────────────────┐            ┌───────────────────┐
-  │   Procore REST    │           │ Azure SQL DB      │            │ SharePoint / Graph│
-  │   OAuth 2.0 API   │           │ (ODBC Driver 17)  │            │ (Azure AD OAuth)  │
-  └───────────────────┘           └───────────────────┘            └───────────────────┘
+
+```mermaid
+flowchart TD
+    subgraph Client["Frontend Layer (React 18 + Vite)"]
+        UI["Dashboard UI\n(Tailwind CSS + SVG Icons)"]
+        Nav["Sidebar / Navigation Tabs"]
+        Wizard["4-Step Upload Wizard"]
+        Select["Searchable Select\n(useMemo + Keyboard Nav)"]
+        Dropzone["File Dropzone\n(Thumbnails + Memory Cleanup)"]
+    end
+
+    subgraph Server["Backend Layer (FastAPI + Python 3.12)"]
+        API["FastAPI REST Endpoints\n(/api/procore, /api/shopify, /api/special)"]
+        Cache["In-Memory TTL Cache\n(600s TTL Expiration)"]
+        Opt["Image Optimization & EXIF Engine\n(PIL + EXIF Stripping)"]
+        Workers["Parallel Upload Engine\n(ThreadPoolExecutor 5 workers)"]
+    end
+
+    subgraph Integrations["Cloud Services & Databases"]
+        Procore["Procore REST API\n(OAuth 2.0 Album & Photo Sync)"]
+        SQL["Azure SQL Database\n([dw-sqldb] ODBC Driver 17)"]
+        SharePoint["Microsoft SharePoint / Graph API\n(Azure AD OAuth Drive Uploads)"]
+    end
+
+    UI --> API
+    Wizard --> API
+    Select --> API
+
+    API <--> Cache
+    API --> Opt
+    Opt --> Workers
+
+    Workers --> Procore
+    API <--> SQL
+    Workers --> SharePoint
 ```
 
 ---
