@@ -2,53 +2,59 @@ import os
 import sys
 import json
 import pyodbc
+
+# Ensure UTF-8 output encoding for Windows terminal
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from procore_api import ProcoreAPI
 
-# Attempt to load streamlit secrets if available
-try:
-    import streamlit as st
-    HAS_STREAMLIT = True
-except ImportError:
-    HAS_STREAMLIT = False
+def load_dotenv_file():
+    """Load backend/.env or .env file locally into os.environ if present."""
+    env_paths = [
+        os.path.join(os.getcwd(), "backend", ".env"),
+        os.path.join(os.getcwd(), ".env"),
+    ]
+    for env_path in env_paths:
+        if os.path.exists(env_path):
+            try:
+                with open(env_path, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            key = k.strip()
+                            val = v.strip()
+                            if key not in os.environ:
+                                os.environ[key] = val
+            except Exception:
+                pass
 
 def get_db_credentials():
-    """Retrieve DB credentials from Streamlit Secrets or Environment Variables."""
-    creds = {
-        'server': '',
-        'database': '',
-        'username': '',
-        'password': '',
-        'driver': '{ODBC Driver 17 for SQL Server}'
-    }
+    """Retrieve DB credentials from Environment Variables or .env file."""
+    load_dotenv_file()
     
-    if HAS_STREAMLIT:
-        try:
-            if 'azure_sql' in st.secrets:
-                creds['server'] = st.secrets["azure_sql"].get("AZURE_DB_SERVER", "")
-                creds['database'] = st.secrets["azure_sql"].get("AZURE_DB_NAME", "")
-                creds['username'] = st.secrets["azure_sql"].get("AZURE_DB_USERNAME", "")
-                creds['password'] = st.secrets["azure_sql"].get("AZURE_DB_PASSWORD", "")
-                creds['driver'] = st.secrets["azure_sql"].get("AZURE_DB_DRIVER", creds['driver'])
-            elif 'DB_SERVER' in st.secrets:
-                creds['server'] = st.secrets.get("DB_SERVER", "")
-                creds['database'] = st.secrets.get("DB_NAME", "")
-                creds['username'] = st.secrets.get("DB_USERNAME", "")
-                creds['password'] = st.secrets.get("DB_PASSWORD", "")
-                creds['driver'] = st.secrets.get("DB_DRIVER", creds['driver'])
-        except Exception:
-            pass
+    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', '')).strip()
+    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', '')).strip()
+    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', '')).strip()
+    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', '')).strip()
+    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')).strip()
 
-    # Strip and sanitize
-    creds['server'] = str(os.getenv('AZURE_DB_SERVER', creds['server'])).strip()
-    creds['database'] = str(os.getenv('AZURE_DB_NAME', creds['database'])).strip()
-    creds['username'] = str(os.getenv('AZURE_DB_USERNAME', creds['username'])).strip()
-    creds['password'] = str(os.getenv('AZURE_DB_PASSWORD', creds['password'])).strip()
-    creds['driver'] = str(os.getenv('AZURE_DB_DRIVER', creds['driver'])).strip()
-    
-    if os.name != 'nt' and creds['driver'] == '{ODBC Driver 17 for SQL Server}':
-        creds['driver'] = 'ODBC Driver 17 for SQL Server'
-        
-    return creds
+    # Clean server string
+    server = server.replace('tcp:', '').split(',')[0].strip()
+    if server and '.' not in server:
+        server = f"{server}.database.windows.net"
+
+    if driver and not driver.startswith('{'):
+        driver = f"{{{driver}}}"
+
+    return {
+        'server': server,
+        'database': database,
+        'username': username,
+        'password': password,
+        'driver': driver
+    }
 
 def connect_to_db():
     creds = get_db_credentials()
@@ -57,14 +63,13 @@ def connect_to_db():
     usr = creds['username']
     drv = creds['driver']
     
-    print(f"DEBUG: Server='{srv}', DB='{db}', User='{usr}', Driver='{drv}'")
+    print(f"DEBUG: Connecting to Server='{srv}', DB='{db}', User='{usr}', Driver='{drv}'")
     
     if not srv or not creds['password']:
         print("❌ Missing database credentials.")
         return None
         
     try:
-        # Wrap PWD in {} to support special characters like semicolons in passwords
         conn_str = f"DRIVER={drv};SERVER={srv};DATABASE={db};UID={usr};PWD={{{creds['password']}}};Connection Timeout=30;"
         conn = pyodbc.connect(conn_str)
         print("✅ Database connected successfully!")

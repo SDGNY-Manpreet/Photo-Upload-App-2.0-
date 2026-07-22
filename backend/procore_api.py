@@ -1,26 +1,25 @@
+import os
+import io
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import toml
-import os
-import io
 
 class ProcoreAPI:
     """
     Helper class for creating and managing Procore API interactions.
     Handles authentication, project listing, album management, and photo uploads.
     """
-    BASE_URL = "https://sandbox.procore.com/rest/v1.0/"
-    TOKEN_URL = "https://login-sandbox.procore.com/oauth/token"
+    BASE_URL = "https://api.procore.com/rest/v1.0/"
+    TOKEN_URL = "https://login.procore.com/oauth/token"
     
     def __init__(self, secrets_path=".streamlit/secrets.toml"):
         self.secrets_path = secrets_path
         self.token = None
-        self.client_id = None
-        self.client_secret = None
-        self.base_url = self.BASE_URL
-        self.token_url = self.TOKEN_URL
-        self.company_id = None
+        self.client_id = os.getenv("PROCORE_CLIENT_ID", "")
+        self.client_secret = os.getenv("PROCORE_CLIENT_SECRET", "")
+        self.base_url = os.getenv("PROCORE_BASE_URL", self.BASE_URL)
+        self.token_url = os.getenv("PROCORE_TOKEN_URL", self.TOKEN_URL)
+        self.company_id = os.getenv("PROCORE_COMPANY_ID", None)
         
         self.session = requests.Session()
         retries = Retry(
@@ -35,25 +34,26 @@ class ProcoreAPI:
         self.load_secrets()
 
     def load_secrets(self):
-        try:
-            with open(self.secrets_path, "r") as f:
-                secrets = toml.load(f)["procore"]
-            self.client_id = secrets["client_id"]
-            self.client_secret = secrets["client_secret"]
-            
-            if "base_url" in secrets:
-                self.base_url = secrets["base_url"]
-            if "token_url" in secrets:
-                self.token_url = secrets["token_url"]
-                
-        except Exception as e:
-            # Fallback to environment variables
-            self.client_id = os.getenv("PROCORE_CLIENT_ID", "")
-            self.client_secret = os.getenv("PROCORE_CLIENT_SECRET", "")
-            self.base_url = os.getenv("PROCORE_BASE_URL", self.BASE_URL)
-            self.token_url = os.getenv("PROCORE_TOKEN_URL", self.TOKEN_URL)
+        if not self.client_id or not self.client_secret:
+            if os.path.exists(self.secrets_path):
+                try:
+                    import toml
+                    with open(self.secrets_path, "r") as f:
+                        secrets = toml.load(f).get("procore", {})
+                    self.client_id = secrets.get("client_id", self.client_id)
+                    self.client_secret = secrets.get("client_secret", self.client_secret)
+                    if "base_url" in secrets:
+                        self.base_url = secrets["base_url"]
+                    if "token_url" in secrets:
+                        self.token_url = secrets["token_url"]
+                except Exception:
+                    pass
 
     def authenticate(self):
+        if not self.client_id or not self.client_secret:
+            print("❌ Missing Procore Client ID or Client Secret.")
+            return False
+
         payload = {
             "grant_type": "client_credentials", 
             "client_id": self.client_id, 
@@ -65,8 +65,10 @@ class ProcoreAPI:
                 self.token = res.json()["access_token"]
                 return True
             else:
+                print(f"❌ Procore authentication failed ({res.status_code}): {res.text}")
                 return False
-        except Exception:
+        except Exception as e:
+            print(f"❌ Exception during Procore authentication: {e}")
             return False
 
     def get_headers(self):
