@@ -31,6 +31,20 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; else pip install requests toml pyodbc pandas; fi
 
+      - name: Create Secrets File
+        run: |
+          mkdir -p .streamlit
+          cat << 'EOF' > .streamlit/secrets.toml
+          SHOPIFY_CLIENT_SECRET = "${{ secrets.SHOPIFY_CLIENT_SECRET }}"
+          
+          [azure_sql]
+          AZURE_DB_SERVER = "${{ secrets.AZURE_DB_SERVER }}"
+          AZURE_DB_NAME = "${{ secrets.AZURE_DB_NAME }}"
+          AZURE_DB_USERNAME = "${{ secrets.AZURE_DB_USERNAME }}"
+          AZURE_DB_PASSWORD = "${{ secrets.AZURE_DB_PASSWORD }}"
+          AZURE_DB_DRIVER = "{ODBC Driver 17 for SQL Server}"
+          EOF
+
       - name: Run Shopify Synchronization Script
         env:
           AZURE_DB_SERVER: ${{ secrets.AZURE_DB_SERVER }}
