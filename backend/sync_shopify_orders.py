@@ -32,9 +32,9 @@ def get_shopify_credentials():
         except Exception:
             pass
 
-    creds['shop_url'] = os.getenv('SHOP_URL', creds['shop_url'])
-    creds['client_id'] = os.getenv('CLIENT_ID', creds['client_id'])
-    creds['client_secret'] = os.getenv('SHOPIFY_CLIENT_SECRET', creds['client_secret'])
+    creds['shop_url'] = str(os.getenv('SHOP_URL', creds['shop_url'])).strip()
+    creds['client_id'] = str(os.getenv('CLIENT_ID', creds['client_id'])).strip()
+    creds['client_secret'] = str(os.getenv('SHOPIFY_CLIENT_SECRET', creds['client_secret'])).strip()
     
     return creds
 
@@ -56,22 +56,20 @@ def get_db_credentials():
                 creds['username'] = st.secrets["azure_sql"].get("AZURE_DB_USERNAME", "")
                 creds['password'] = st.secrets["azure_sql"].get("AZURE_DB_PASSWORD", "")
                 creds['driver'] = st.secrets["azure_sql"].get("AZURE_DB_DRIVER", creds['driver'])
-                return creds
             elif 'DB_SERVER' in st.secrets:
                 creds['server'] = st.secrets.get("DB_SERVER", "")
                 creds['database'] = st.secrets.get("DB_NAME", "")
                 creds['username'] = st.secrets.get("DB_USERNAME", "")
                 creds['password'] = st.secrets.get("DB_PASSWORD", "")
                 creds['driver'] = st.secrets.get("DB_DRIVER", creds['driver'])
-                return creds
         except Exception:
             pass
 
-    creds['server'] = os.getenv('AZURE_DB_SERVER', creds['server'])
-    creds['database'] = os.getenv('AZURE_DB_NAME', creds['database'])
-    creds['username'] = os.getenv('AZURE_DB_USERNAME', creds['username'])
-    creds['password'] = os.getenv('AZURE_DB_PASSWORD', creds['password'])
-    creds['driver'] = os.getenv('AZURE_DB_DRIVER', creds['driver'])
+    creds['server'] = str(os.getenv('AZURE_DB_SERVER', creds['server'])).strip()
+    creds['database'] = str(os.getenv('AZURE_DB_NAME', creds['database'])).strip()
+    creds['username'] = str(os.getenv('AZURE_DB_USERNAME', creds['username'])).strip()
+    creds['password'] = str(os.getenv('AZURE_DB_PASSWORD', creds['password'])).strip()
+    creds['driver'] = str(os.getenv('AZURE_DB_DRIVER', creds['driver'])).strip()
     
     if os.name != 'nt' and creds['driver'] == '{ODBC Driver 17 for SQL Server}':
         creds['driver'] = 'ODBC Driver 17 for SQL Server'
@@ -80,14 +78,21 @@ def get_db_credentials():
 
 def connect_to_db():
     creds = get_db_credentials()
-    print(f"DEBUG: Connecting with Server='{creds['server']}', Database='{creds['database']}', User='{creds['username']}', Driver='{creds['driver']}'")
-    if not creds['server'] or not creds['password']:
+    srv = creds['server']
+    db = creds['database']
+    usr = creds['username']
+    drv = creds['driver']
+    
+    print(f"DEBUG: Server='{srv}', DB='{db}', User='{usr}', Driver='{drv}'")
+    
+    if not srv or not creds['password']:
         print("[!] Missing database credentials.")
         return None
         
     try:
-        conn_str = f"DRIVER={creds['driver']};SERVER={creds['server']};DATABASE={creds['database']};UID={creds['username']};PWD={creds['password']};Connection Timeout=30;"
+        conn_str = f"DRIVER={drv};SERVER={srv};DATABASE={db};UID={usr};PWD={{{creds['password']}}};Connection Timeout=30;"
         conn = pyodbc.connect(conn_str)
+        print("[+] Connected to database successfully!")
         return conn
     except Exception as e:
         print(f"[!] Database connection failed: {e}")
