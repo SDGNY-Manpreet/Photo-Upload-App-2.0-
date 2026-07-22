@@ -2,7 +2,7 @@ import os
 import sys
 import json
 import pyodbc
-from app.services.procore_client import ProcoreClient
+from procore_api import ProcoreAPI
 
 # Attempt to load streamlit secrets if available
 try:
@@ -88,16 +88,16 @@ def sync_projects():
     existing_numbers = get_existing_project_numbers(conn)
     print(f"✅ Found {len(existing_numbers)} existing projects in database.")
     
-    client = ProcoreClient()
-    if not client.authenticate():
+    api = ProcoreAPI()
+    if not api.authenticate():
         print("❌ Failed to authenticate with Procore API.")
         conn.close()
         sys.exit(1)
     
-    headers = client.get_headers()
+    headers = api.get_headers()
     
     print("📥 Fetching projects from Procore...")
-    procore_projects = client.list_projects()
+    procore_projects = api.list_projects()
     print(f"✅ Fetched {len(procore_projects)} projects from Procore.")
     
     cursor = conn.cursor()
@@ -119,12 +119,12 @@ def sync_projects():
         p_name = p.get('name')
         print(f"🆕 Found new project: {p_name} ({p_num}). Fetching details...")
         
-        url_ext = f"{client.BASE_URL}projects/{p_id}?company_id={client.company_id}&serializer_view=extended"
-        res_ext = client.session.get(url_ext, headers=headers)
+        url_ext = f"{api.base_url}projects/{p_id}?company_id={api.company_id}&serializer_view=extended"
+        res_ext = api.session.get(url_ext, headers=headers)
         p_ext = res_ext.json() if res_ext.status_code == 200 else {}
         
-        url_roles = f"{client.BASE_URL}project_roles?project_id={p_id}&company_id={client.company_id}"
-        res_roles = client.session.get(url_roles, headers=headers)
+        url_roles = f"{api.base_url}project_roles?project_id={p_id}&company_id={api.company_id}"
+        res_roles = api.session.get(url_roles, headers=headers)
         roles_data = res_roles.json() if res_roles.status_code == 200 else []
         
         executives = []
@@ -140,8 +140,8 @@ def sync_projects():
             elif 'manager' in role_name or 'pm' in role_name:
                 managers.append(clean_name)
                 
-        url_contracts = f"{client.BASE_URL}prime_contracts?project_id={p_id}"
-        res_contracts = client.session.get(url_contracts, headers=headers)
+        url_contracts = f"{api.base_url}prime_contracts?project_id={p_id}"
+        res_contracts = api.session.get(url_contracts, headers=headers)
         contracts_data = res_contracts.json() if res_contracts.status_code == 200 else []
         
         customer = None
