@@ -73,3 +73,5 @@ npm run dev
 | POST | `/api/shopify/upload` | Upload to SharePoint Shopify drive |
 | GET | `/api/special/projects` | List special projects from Azure SQL |
 | POST | `/api/special/upload` | Upload to SharePoint Special Projects drive |
+
+<!-- Test push to both remotes -->
