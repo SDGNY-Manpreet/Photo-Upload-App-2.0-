@@ -89,12 +89,31 @@ def connect_to_db():
         return None
 
 def get_shopify_access_token(creds):
-    token = creds.get('client_secret', '').strip()
-    if token:
-        print("[+] Using provided Shopify credential directly as the Access Token.")
-        return token
-    else:
-        print("[!] Shopify credential is missing.")
+    print(f"[*] Authenticating with Shopify ({creds['shop_url']})...")
+    if not creds.get('client_secret'):
+        print("[!] ERROR: Shopify client_secret is EMPTY! Please make sure SHOPIFY_CLIENT_SECRET is added to this repository's GitHub Secrets.")
+        return None
+
+    token_url = f"https://{creds['shop_url']}/admin/oauth/access_token"
+    payload = {
+        "client_id": creds['client_id'],
+        "client_secret": creds['client_secret'],
+        "grant_type": "client_credentials",
+    }
+    try:
+        resp = requests.post(token_url, json=payload, timeout=15)
+        resp.raise_for_status()
+        token = resp.json().get("access_token")
+        if token:
+            print("[+] Successfully authenticated with Shopify.")
+            return token
+        else:
+            print("[!] Failed to get access token from response.")
+            return None
+    except Exception as e:
+        print(f"[!] Authentication Error: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Details: {e.response.text}")
         return None
 
 def fetch_recent_orders(shop_url, token):
