@@ -37,6 +37,10 @@ jobs:
           AZURE_DB_NAME: ${{ secrets.AZURE_DB_NAME }}
           AZURE_DB_USERNAME: ${{ secrets.AZURE_DB_USERNAME }}
           AZURE_DB_PASSWORD: ${{ secrets.AZURE_DB_PASSWORD }}
+          DB_SERVER: ${{ secrets.DB_SERVER }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           PROCORE_CLIENT_ID: ${{ secrets.PROCORE_CLIENT_ID }}
           PROCORE_CLIENT_SECRET: ${{ secrets.PROCORE_CLIENT_SECRET }}
           PROCORE_BASE_URL: "https://api.procore.com/rest/v1.0/"

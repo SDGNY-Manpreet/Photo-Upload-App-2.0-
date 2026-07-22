@@ -34,11 +34,11 @@ def get_db_credentials():
     """Retrieve DB credentials from Environment Variables or .env file."""
     load_dotenv_file()
     
-    server = os.getenv('AZURE_DB_SERVER', os.getenv('DB_SERVER', '')).strip()
-    database = os.getenv('AZURE_DB_NAME', os.getenv('DB_NAME', '')).strip()
-    username = os.getenv('AZURE_DB_USERNAME', os.getenv('DB_USERNAME', '')).strip()
-    password = os.getenv('AZURE_DB_PASSWORD', os.getenv('DB_PASSWORD', '')).strip()
-    driver = os.getenv('AZURE_DB_DRIVER', os.getenv('DB_DRIVER', '{ODBC Driver 17 for SQL Server}')).strip()
+    server = (os.getenv('AZURE_DB_SERVER') or os.getenv('DB_SERVER') or '').strip()
+    database = (os.getenv('AZURE_DB_NAME') or os.getenv('DB_NAME') or '').strip()
+    username = (os.getenv('AZURE_DB_USERNAME') or os.getenv('DB_USERNAME') or '').strip()
+    password = (os.getenv('AZURE_DB_PASSWORD') or os.getenv('DB_PASSWORD') or '').strip()
+    driver = (os.getenv('AZURE_DB_DRIVER') or os.getenv('DB_DRIVER') or '{ODBC Driver 17 for SQL Server}').strip()
 
     # Clean server string
     server = server.replace('tcp:', '').split(',')[0].strip()
